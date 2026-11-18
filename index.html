@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>737-Inspired Interactive Cockpit</title>
+<style>
+:root {
+  color-scheme: dark;
+  --panel: #282d33;
+  --edge: #101317;
+  --green: #75ff9a;
+  --amber: #ffbb45;
+  --text: #e0e5e9;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: #111419;
+  color: var(--text);
+  font: 13px system-ui, sans-serif;
+}
+header {
+  padding: 14px 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  background: #20252b;
+}
+h1 { margin: 0; font-size: 19px; }
+small { color: #aab4bf; }
+button, select, input { font: inherit; }
+button {
+  background: linear-gradient(#444d57, #252b33);
+  color: white;
+  border: 1px solid #69727d;
+  border-radius: 5px;
+  padding: 9px 10px;
+  cursor: pointer;
+  min-height: 38px;
+}
+button:hover { filter: brightness(1.2); }
+button:active { transform: translateY(1px); }
+button.on {
+  color: #07190c;
+  background: #72e691;
+  border-color: #bbffcc;
+  box-shadow: 0 0 8px #48ff7044;
+}
+button.warn { color: var(--amber); }
+button:focus-visible, input:focus-visible {
+  outline: 2px solid #75bfff;
+  outline-offset: 3px;
+}
+main { max-width: 1480px; margin: auto; padding: 12px; }
+.panel {
+  background: var(--panel);
+  border: 3px solid var(--edge);
+  border-radius: 9px;
+  padding: 12px;
+  box-shadow: inset 0 1px #65707a;
+}
+.title {
+  text-transform: uppercase;
+  letter-spacing: 1.6px;
+  color: #bbc5d0;
+  font-size: 11px;
+  margin-bottom: 10px;
+}
+.grid { display: grid; gap: 10px; }
+.overhead { grid-template-columns: repeat(4, 1fr); }
+.buttons { display: flex; flex-wrap: wrap; gap: 7px; }
+.mcp {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr) 1.4fr;
+  gap: 12px;
+  margin: 10px 0;
+}
+.target label { display: block; margin-bottom: 6px; }
+.target input[type=number] {
+  width: 100%;
+  background: #090d10;
+  color: var(--green);
+  border: 1px solid #65707a;
+  font: 24px monospace;
+  padding: 6px;
+}
+.target .buttons { margin-top: 6px; }
+.instruments {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr .8fr;
+  gap: 10px;
+}
+canvas {
+  width: 100%;
+  height: auto;
+  display: block;
+  background: #030607;
+  border: 4px solid #111;
+  border-radius: 8px;
+}
+.bottom {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+  margin-top: 10px;
+}
+.control { margin: 12px 0; }
+.control label {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+input[type=range] { width: 100%; accent-color: #8bb7d6; }
+select {
+  width: 100%;
+  padding: 8px;
+  background: #11171c;
+  color: white;
+}
+.readout {
+  background: #090d10;
+  border: 1px solid #46525f;
+  padding: 9px;
+  color: var(--green);
+  font: 14px monospace;
+  line-height: 1.7;
+  margin-top: 10px;
+}
+#alerts { min-height: 50px; color: var(--amber); }
+#log {
+  height: 108px;
+  overflow-y: auto;
+  font: 12px monospace;
+  line-height: 1.7;
+  color: #b4c5d7;
+}
+footer { padding: 14px 2px; color: #9ba8b6; line-height: 1.6; }
+body.dim main { filter: brightness(.65); }
+kbd {
+  border: 1px solid #64717e;
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+@media(max-width: 850px) {
+  .overhead, .bottom { grid-template-columns: 1fr 1fr; }
+  .mcp { grid-template-columns: 1fr 1fr; }
+  .instruments { grid-template-columns: 1fr; }
+}
+@media(max-width: 500px) {
+  .overhead, .bottom { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>737-Inspired Interactive Cockpit</h1>
+    <small>Simplified desktop flight simulator · fictional systems logic</small>
+  </div>
+  <div class="buttons">
+    <button id="ready">Ready for takeoff</button>
+    <button id="pause">Pause</button>
+    <button id="reset">Reset</button>
+    <button id="sound">Sound OFF</button>
+  </div>
+</header>
+
+<main>
+  <section class="grid overhead">
+    <div class="panel">
+      <div class="title">Electrical</div>
+      <div class="buttons">
+        <button data-toggle="battery">BATTERY</button>
+        <button data-toggle="external">EXT POWER</button>
+        <button data-toggle="apu">APU</button>
+        <button data-toggle="apuGen">APU GEN</button>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="title">Fuel / engine start</div>
+      <div class="buttons">
+        <button data-toggle="pumpL">FUEL PUMP L</button>
+        <button data-toggle="pumpR">FUEL PUMP R</button>
+        <button id="start1">START ENG 1</button>
+        <button id="start2">START ENG 2</button>
+        <button id="cut1">CUTOFF ENG 1</button>
+        <button id="cut2">CUTOFF ENG 2</button>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="title">Lighting</div>
+      <div class="buttons">
+        <button data-toggle="beacon">BEACON</button>
+        <button data-toggle="nav">NAV</button>
+        <button data-toggle="strobe">STROBE</button>
+        <button data-toggle="landing">LANDING</button>
+        <button data-toggle="dim">PANEL DIM</button>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="title">Aircraft systems</div>
+      <div class="buttons">
+        <button data-toggle="hydraulics">HYD PUMPS</button>
+        <button data-toggle="pitot">PITOT HEAT</button>
+        <button data-toggle="antiIce">ANTI ICE</button>
+        <button id="ack">MASTER CAUTION / ACK</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel mcp">
+    <div class="target">
+      <label for="speedTarget">SELECTED SPEED · kt</label>
+      <input id="speedTarget" type="number" min="100" max="340" step="1" value="180">
+      <div class="buttons">
+        <button data-toggle="at">A/T ARM</button>
+        <button data-toggle="speedMode">SPEED</button>
+      </div>
+    </div>
+    <div class="target">
+      <label for="headingTarget">SELECTED HEADING · °</label>
+      <input id="headingTarget" type="number" min="0" max="359" value="0">
+      <div class="buttons">
+        <button data-toggle="headingMode">HDG SEL</button>
+      </div>
+    </div>
+    <div class="target">
+      <label for="altTarget">SELECTED ALTITUDE · ft</label>
+      <input id="altTarget" type="number" min="0" max="40000" step="100" value="5000">
+      <div class="buttons">
+        <button data-toggle="altMode">ALT ACQUIRE</button>
+      </div>
+    </div>
+    <div>
+      <div class="title">Autoflight</div>
+      <div class="buttons">
+        <button data-toggle="fd">FLIGHT DIRECTOR</button>
+        <button id="ap">AUTOPILOT CMD</button>
+        <button id="disconnect">DISCONNECT</button>
+      </div>
+      <div id="modeText" class="readout">MANUAL FLIGHT</div>
+    </div>
+  </section>
+
+  <section class="instruments">
+    <div class="panel">
+      <div class="title">Primary flight display</div>
+      <canvas id="pfd" width="560" height="440"></canvas>
+    </div>
+    <div class="panel">
+      <div class="title">Navigation display</div>
+      <canvas id="nd" width="460" height="440"></canvas>
+    </div>
+    <div class="panel">
+      <div class="title">Engine / aircraft status</div>
+      <canvas id="eicas" width="340" height="440"></canvas>
+    </div>
+  </section>
+
+  <section class="bottom">
+    <div class="panel">
+      <div class="title">Thrust / configuration</div>
+      <div class="control">
+        <label for="throttle">THROTTLE <span id="throttleValue">0%</span></label>
+        <input id="throttle" type="range" min="0" max="100" value="0">
+      </div>
+      <div class="control">
+        <label for="flaps">FLAPS</label>
+        <select id="flaps">
+          <option value="0">UP</option>
+          <option value="1">1</option>
+          <option value="5">5</option>
+          <option value="10">10</option>
+          <option value="15">15</option>
+          <option value="25">25</option>
+          <option value="30">30</option>
+          <option value="40">40</option>
+        </select>
+      </div>
+      <div class="buttons">
+        <button id="gear">GEAR DOWN</button>
+        <button data-toggle="spoilers">SPOILERS</button>
+        <button data-toggle="parking">PARKING BRAKE</button>
+        <button id="brake" aria-pressed="false">HOLD BRAKES</button>
+      </div>
+      <div id="configuration" class="readout"></div>
+    </div>
+
+    <div class="panel">
+      <div class="title">Flight controls</div>
+      <div class="control">
+        <label for="pitch">PITCH COMMAND <span id="pitchValue"></span></label>
+        <input id="pitch" type="range" min="-15" max="20" step=".1" value="0">
+      </div>
+      <div class="control">
+        <label for="roll">BANK COMMAND <span id="rollValue"></span></label>
+        <input id="roll" type="range" min="-40" max="40" step=".1" value="0">
+      </div>
+      <div class="buttons">
+        <button id="center">CENTER CONTROLS</button>
+        <button id="trim">TRIM LEVEL</button>
+      </div>
+      <div class="readout">
+        <div id="position"></div>
+        <div id="flightTime"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="title">Crew alerts</div>
+      <div id="alerts" role="status"></div>
+      <div class="title">Event log</div>
+      <div id="log" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <footer>
+    <kbd>↑</kbd>/<kbd>↓</kbd> pitch ·
+    <kbd>←</kbd>/<kbd>→</kbd> bank ·
+    <kbd>W</kbd>/<kbd>S</kbd> throttle ·
+    <kbd>B</kbd> brakes · <kbd>G</kbd> gear ·
+    <kbd>F</kbd> flaps · <kbd>P</kbd> autopilot ·
+    <kbd>Space</kbd> parking brake.
+    <br>
+    Manual start: battery → APU → APU generator → fuel pumps →
+    hydraulic pumps → start both engines. Release parking brake,
+    add thrust, and command nose-up pitch as speed builds.
+    Autopilot requires electrical power and an airborne aircraft.
+  </footer>
+</main>
+
+<script>
+"use strict";
+
+const $ = id => document.getElementById(id);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const wrap = v => (v % 360 + 360) % 360;
+const headingError = (target, current) => (target - current + 540) % 360 - 180;
+const keys = new Set();
+const flapStops = [0, 1, 5, 10, 15, 25, 30, 40];
+
+let s, paused = false, acknowledged = "", previousAlerts = "";
+let audio, oscillator, volume, soundOn = false;
+
+function defaults() {
+  return {
+    battery:false, external:false, apu:false, apuGen:false,
+    pumpL:false, pumpR:false, hydraulics:false, pitot:false,
+    antiIce:false, beacon:false, nav:false, strobe:false,
+    landing:false, dim:false, fd:false, ap:false, at:false,
+    speedMode:false, headingMode:false, altMode:false,
+    spoilers:false, parking:true, brake:false,
+    gearDown:true, gear:1, flapTarget:0, flaps:0,
+    engine1:false, engine2:false, n1:0, n2:0,
+    throttle:0, pitchCommand:0, rollCommand:0,
+    pitch:0, roll:0, speed:0, altitude:0, vs:0,
+    heading:0, north:0, east:0, fuel:6400,
+    time:0, airborne:false, crashed:false,
+    speedTarget:180, headingTarget:0, altTarget:5000
+  };
+}
+
+function power() {
+  return s.battery || s.external || (s.apu && s.apuGen) ||
+    s.n1 > 25 || s.n2 > 25;
+}
+
+function log(message) {
+  const line = document.createElement("div");
+  line.textContent = `[${Math.floor(s.time).toString().padStart(4,"0")}] ${message}`;
+  $("log").prepend(line);
+  while ($("log").children.length > 40) $("log").lastChild.remove();
+}
+
+function reset() {
+  s = defaults();
+  paused = false;
+  acknowledged = previousAlerts = "";
+  keys.clear();
+  $("log").textContent = "";
+  $("speedTarget").value = 180;
+  $("headingTarget").value = 0;
+  $("altTarget").value = 5000;
+  $("pause").textContent = "Pause";
+  log("Cold and dark. Parking brake set.");
+  sync();
+}
+
+function startEngine(n) {
+  if (s.crashed) return;
+  if (!s.battery || !s.apu || !s.apuGen) {
+    log("Start denied: battery, APU and APU GEN required.");
+    return;
+  }
+  if (!s[n === 1 ? "pumpL" : "pumpR"]) {
+    log("Start denied: corresponding fuel pump is OFF.");
+    return;
+  }
+  if (s.fuel <= 0) { log("Start denied: no fuel."); return; }
+  s["engine" + n] = true;
+  log("Engine " + n + " start selected.");
+}
+
+function toggleAP() {
+  if (s.ap) {
+    s.ap = false;
+    log("Autopilot disconnected.");
+  } else if (!power() || !s.airborne || s.altitude < 100 || s.crashed) {
+    log("AP unavailable: requires power and flight above 100 ft.");
+  } else {
+    s.ap = true;
+    s.fd = true;
+    log("Autopilot engaged.");
+  }
+  sync();
+}
+
+function toggle(name) {
+  if (s.crashed) return;
+  s[name] = !s[name];
+  if (name === "apu" && s.apu && !s.battery) {
+    s.apu = false;
+    log("APU requires battery.");
+  } else if (name === "apuGen" && s.apuGen && !s.apu) {
+    s.apuGen = false;
+    log("Start APU before connecting generator.");
+  } else {
+    log(name + (s[name] ? " ON" : " OFF"));
+  }
+  sync();
+}
+
+function gearToggle() {
+  if (s.crashed) return;
+  if (!s.airborne && s.gearDown) {
+    log("Gear retraction inhibited on ground.");
+    return;
+  }
+  s.gearDown = !s.gearDown;
+  log(s.gearDown ? "Gear selected DOWN." : "Gear selected UP.");
+  sync();
+}
+
+document.querySelectorAll("[data-toggle]").forEach(button => {
+  button.onclick = () => toggle(button.dataset.toggle);
+});
+
+$("start1").onclick = () => startEngine(1);
+$("start2").onclick = () => startEngine(2);
+$("cut1").onclick = () => { s.engine1 = false; log("Engine 1 fuel cutoff."); };
+$("cut2").onclick = () => { s.engine2 = false; log("Engine 2 fuel cutoff."); };
+$("ap").onclick = toggleAP;
+$("disconnect").onclick = () => {
+  s.ap = s.at = false;
+  log("Autopilot and autothrottle disconnected.");
+  sync();
+};
+$("gear").onclick = gearToggle;
+$("reset").onclick = reset;
+$("pause").onclick = () => {
+  paused = !paused;
+  $("pause").textContent = paused ? "Resume" : "Pause";
+};
+$("ack").onclick = () => {
+  acknowledged = previousAlerts;
+  log("Current cautions acknowledged.");
+};
+$("center").onclick = () => {
+  s.pitchCommand = s.rollCommand = 0;
+  sync();
+};
+$("trim").onclick = () => {
+  s.pitchCommand = s.airborne ? 3 : 0;
+  s.rollCommand = 0;
+  log("Level-flight trim preset selected.");
+  sync();
+};
+$("ready").onclick = () => {
+  reset();
+  Object.assign(s, {
+    battery:true, apu:true, apuGen:true,
+    pumpL:true, pumpR:true, hydraulics:true, pitot:true,
+    beacon:true, nav:true, strobe:true, landing:true,
+    engine1:true, engine2:true, n1:22, n2:22,
+    flapTarget:5, flaps:5, parking:false, fd:true
+  });
+  log("Ready. Increase thrust, then command nose-up pitch.");
+  sync();
+};
+
+for (const [id, field, low, high] of [
+  ["speedTarget","speedTarget",100,340],
+  ["headingTarget","headingTarget",0,359],
+  ["altTarget","altTarget",0,40000]
+]) {
+  $(id).addEventListener("change", e => {
+    const value = Number(e.target.value);
+    s[field] = clamp(Number.isFinite(value) ? value : low, low, high);
+    e.target.value = s[field];
+  });
+}
+$("throttle").oninput = e => s.throttle = Number(e.target.value) / 100;
+$("pitch").oninput = e => s.pitchCommand = Number(e.target.value);
+$("roll").oninput = e => s.rollCommand = Number(e.target.value);
+$("flaps").onchange = e => s.flapTarget = Number(e.target.value);
+
+$("brake").onpointerdown = e => {
+  s.brake = true;
+  e.currentTarget.setPointerCapture(e.pointerId);
+};
+$("brake").onpointerup = $("brake").onpointercancel = () => s.brake = false;
+$("brake").onlostpointercapture = () => s.brake = false;
+
+window.addEventListener("keydown", e => {
+  if (/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
+  const k = e.key.toLowerCase();
+  if (["arrowup","arrowdown","arrowleft","arrowright"," "].includes(k))
+    e.preventDefault();
+  keys.add(k);
+  if (e.repeat) return;
+  if (k === "g") gearToggle();
+  if (k === "p") toggleAP();
+  if (k === " ") toggle("parking");
+  if (k === "f") {
+    s.flapTarget = flapStops[(flapStops.indexOf(s.flapTarget) + 1) % flapStops.length];
+  }
+});
+window.addEventListener("keyup", e => keys.delete(e.key.toLowerCase()));
+window.addEventListener("blur", () => {
+  keys.clear();
+  if (s) s.brake = false;
+});
+
+$("sound").onclick = async () => {
+  try {
+    if (!audio) {
+      audio = new (window.AudioContext || window.webkitAudioContext)();
+      oscillator = audio.createOscillator();
+      volume = audio.createGain();
+      oscillator.type = "sawtooth";
+      oscillator.connect(volume);
+      volume.connect(audio.destination);
+      volume.gain.value = 0;
+      oscillator.start();
+    }
+    await audio.resume();
+    soundOn = !soundOn;
+    $("sound").textContent = "Sound " + (soundOn ? "ON" : "OFF");
+  } catch {
+    log("Audio unavailable in this browser.");
+  }
+};
+
+function sync() {
+  document.querySelectorAll("[data-toggle]").forEach(button => {
+    const on = !!s[button.dataset.toggle];
+    button.classList.toggle("on", on);
+    button.setAttribute("aria-pressed", String(on));
+  });
+  $("ap").classList.toggle("on", s.ap);
+  $("gear").textContent = s.gearDown ? "GEAR DOWN" : "GEAR UP";
+  $("gear").classList.toggle("on", s.gear > .98);
+  $("brake").classList.toggle("on", s.brake || keys.has("b"));
+  $("brake").setAttribute("aria-pressed", String(s.brake || keys.has("b")));
+  $("throttle").value = s.throttle * 100;
+  $("throttleValue").textContent = Math.round(s.throttle * 100) + "%";
+  $("pitch").value = s.pitchCommand;
+  $("roll").value = s.rollCommand;
+  $("pitchValue").textContent = s.pitchCommand.toFixed(1) + "°";
+  $("rollValue").textContent = s.rollCommand.toFixed(1) + "°";
+  $("flaps").value = s.flapTarget;
+  document.body.classList.toggle("dim", s.dim);
+  $("configuration").textContent =
+    `GEAR ${s.gear > .98 ? "DOWN / LOCKED" : s.gear < .02 ? "UP" : "IN TRANSIT"}\n` +
+    ` | FLAPS ${s.flaps.toFixed(0)} | ${s.spoilers ? "SPOILERS EXT" : "SPOILERS RET"}`;
+  $("position").textContent =
+    `N ${s.north.toFixed(2)} nm / E ${s.east.toFixed(2)} nm`;
+  $("flightTime").textContent =
+    `SIM ${Math.floor(s.time / 60)}:${Math.floor(s.time % 60).toString().padStart(2,"0")}`;
+  $("modeText").textContent =
+    `${s.ap ? "CMD" : "MANUAL"} | ` +
+    `${s.ap && s.headingMode ? "HDG" : "ROLL"} | ` +
+    `${s.ap && s.altMode ? "ALT" : "PITCH"} | ` +
+    `${s.at && s.speedMode ? "A/T SPD" : "THR MAN"}`;
+}
+
+function update(dt) {
+  if (paused || s.crashed) return;
+  s.time += dt;
+
+  if (keys.has("w")) s.throttle += dt * .2;
+  if (keys.has("s")) s.throttle -= dt * .2;
+  s.throttle = clamp(s.throttle, 0, 1);
+  if (keys.has("arrowup")) s.pitchCommand -= dt * 7;
+  if (keys.has("arrowdown")) s.pitchCommand += dt * 7;
+  if (keys.has("arrowleft")) s.rollCommand -= dt * 18;
+  if (keys.has("arrowright")) s.rollCommand += dt * 18;
+  s.pitchCommand = clamp(s.pitchCommand, -15, 20);
+  s.rollCommand = clamp(s.rollCommand, -40, 40);
+
+  if (!power()) { s.ap = false; s.at = false; }
+  if (!s.apu) s.apuGen = false;
+  if (!s.pumpL || s.fuel <= 0) s.engine1 = false;
+  if (!s.pumpR || s.fuel <= 0) s.engine2 = false;
+
+  if (power() && s.at && s.speedMode) {
+    const error = s.speedTarget - s.speed;
+    s.throttle = clamp(s.throttle + clamp(error * .0009, -.08, .08) * dt, 0, 1);
+  }
+
+  const spool = 1 - Math.exp(-dt / 3);
+  s.n1 += ((s.engine1 ? 22 + s.throttle * 78 : 0) - s.n1) * spool;
+  s.n2 += ((s.engine2 ? 22 + s.throttle * 78 : 0) - s.n2) * spool;
+  s.fuel = Math.max(0, s.fuel - (s.n1 + s.n2) / 200 * .85 * dt);
+
+  if (power() && s.hydraulics) {
+    s.gear += clamp((s.gearDown ? 1 : 0) - s.gear, -dt / 6, dt / 6);
+    s.flaps += clamp(s.flapTarget - s.flaps, -dt * 2, dt * 2);
+  }
+
+  let desiredPitch = s.pitchCommand, desiredRoll = s.rollCommand;
+  if (s.ap) {
+    if (s.headingMode)
+      desiredRoll = clamp(headingError(s.headingTarget, s.heading) * .65, -25, 25);
+    if (s.altMode) {
+      const targetVS = clamp((s.altTarget - s.altitude) * 1.6, -1800, 2200);
+      desiredPitch = clamp(3 + targetVS / Math.max(1, s.speed * 1.767), -10, 16);
+    }
+  }
+
+  const authority = s.hydraulics && power() ? 1 : .18;
+  s.pitch += (desiredPitch - s.pitch) * Math.min(1, dt * 1.6 * authority);
+  s.roll += (desiredRoll - s.roll) * Math.min(1, dt * 1.8 * authority);
+
+  const thrust = ((s.n1 + s.n2) / 2 - 22) / 78;
+  const braking = s.parking || s.brake || keys.has("b");
+
+  if (!s.airborne) {
+    let accel = Math.max(0, thrust) * 6 - .15 - s.speed * s.speed * .000035;
+    if (braking) accel -= 12;
+    if (s.spoilers) accel -= 1.8;
+    s.speed = Math.max(0, s.speed + accel * dt);
+    s.heading = wrap(s.heading + s.roll * s.speed * .0007 * dt);
+    s.altitude = 0;
+    s.vs = 0;
+    s.roll *= Math.exp(-dt * 2);
+    const liftoff = 145 - Math.min(s.flaps, 15) * 1.1;
+    if (s.speed > liftoff && s.pitch > 5 && !s.spoilers) {
+      s.airborne = true;
+      log("Liftoff.");
+    }
+  }
+
+  if (s.airborne) {
+    const stallSpeed = 125 - s.flaps * .65;
+    const stallSink = Math.max(0, stallSpeed - s.speed) * 75;
+    const targetVS =
+      s.speed * 101.27 * Math.sin((s.pitch - 3) * Math.PI / 180) -
+      stallSink - (s.spoilers ? 1500 : 0);
+    s.vs += (targetVS - s.vs) * Math.min(1, dt * 1.4);
+    s.altitude += s.vs / 60 * dt;
+
+    const drag = .55 + s.speed * s.speed * .000026 +
+      s.gear * .65 + s.flaps * .035 + (s.spoilers ? 2.8 : 0);
+    s.speed = Math.max(0,
+      s.speed + (Math.max(0, thrust) * 5.4 - drag - s.pitch * .075) * dt);
+
+    s.heading = wrap(s.heading +
+      1091 * Math.tan(s.roll * Math.PI / 180) / Math.max(s.speed, 60) * dt);
+
+    if (s.altitude <= 0) {
+      const safe = s.gear > .98 && Math.abs(s.roll) < 10 &&
+        s.vs > -650 && s.speed < 210;
+      s.altitude = 0;
+      if (safe) {
+        s.airborne = false;
+        s.ap = false;
+        s.pitchCommand = 0;
+        log("Touchdown. Use brakes and spoilers to slow down.");
+      } else {
+        s.crashed = true;
+        s.ap = false;
+        s.throttle = 0;
+        log("Flight ended: hard landing or ground impact. Press Reset.");
+      }
+      s.vs = 0;
+    }
+  }
+
+  s.north += Math.cos(s.heading * Math.PI / 180) * s.speed / 3600 * dt;
+  s.east += Math.sin(s.heading * Math.PI / 180) * s.speed / 3600 * dt;
+}
+
+function alerts() {
+  const a = [];
+  if (s.crashed) a.push("FLIGHT ENDED — RESET");
+  if (!power()) a.push("NO ELECTRICAL POWER");
+  if (power() && !s.hydraulics) a.push("HYDRAULIC PUMPS OFF");
+  if (s.airborne && s.speed < 125 - s.flaps * .65) a.push("STALL");
+  if (s.speed > 340 || (s.flaps > 10 && s.speed > 230)) a.push("OVERSPEED");
+  if (s.airborne && s.altitude < 500 && s.vs < -1000) a.push("SINK RATE");
+  if (s.airborne && s.altitude < 350 && s.vs < -150 && s.gear < .98)
+    a.push("TOO LOW — GEAR");
+  if (s.airborne && !s.pitot) a.push("PITOT HEAT OFF");
+  if (s.fuel < 800) a.push("LOW FUEL");
+  if (s.parking && s.throttle > .3) a.push("PARKING BRAKE SET");
+  if (s.airborne && !s.engine1 && !s.engine2) a.push("DUAL ENGINE OUT");
+
+  previousAlerts = a.join(" | ");
+  $("alerts").textContent = previousAlerts || "No active cautions.";
+  $("ack").classList.toggle("warn",
+    !!previousAlerts && previousAlerts !== acknowledged);
+}
+
+function text(c, str, x, y, size = 16, color = "#e8f4fa", align = "left") {
+  c.fillStyle = color;
+  c.font = `${size}px monospace`;
+  c.textAlign = align;
+  c.fillText(str, x, y);
+}
+function line(c, x1, y1, x2, y2, color = "white", width = 2) {
+  c.strokeStyle = color;
+  c.lineWidth = width;
+  c.beginPath(); c.moveTo(x1,y1); c.lineTo(x2,y2); c.stroke();
+}
+function base(id) {
+  const canvas = $(id), c = canvas.getContext("2d");
+  c.clearRect(0,0,canvas.width,canvas.height);
+  c.fillStyle = "#030708";
+  c.fillRect(0,0,canvas.width,canvas.height);
+  if (!power()) {
+    text(c,"DISPLAY OFF",canvas.width/2,canvas.height/2,20,"#40505a","center");
+    return null;
+  }
+  return c;
+}
+
+function drawPFD() {
+  const c = base("pfd");
+  if (!c) return;
+  const cx = 280, cy = 205;
+  c.save();
+  c.beginPath(); c.rect(95,50,370,310); c.clip();
+  c.translate(cx,cy);
+  c.rotate(-s.roll * Math.PI / 180);
+  c.translate(0,s.pitch * 5);
+  c.fillStyle = "#2777b4"; c.fillRect(-650,-900,1300,900);
+  c.fillStyle = "#805230"; c.fillRect(-650,0,1300,900);
+  line(c,-650,0,650,0);
+  for(let p = -30; p <= 30; p += 5) {
+    if (!p) continue;
+    const y = -p * 5, wide = p % 10 === 0 ? 55 : 28;
+    line(c,-wide,y,wide,y,"#f1f6fa",1);
+    if (p % 10 === 0) text(c,String(Math.abs(p)),wide+9,y+5,13);
+  }
+  c.restore();
+
+  line(c,220,cy,265,cy,"#ffe45c",4);
+  line(c,295,cy,340,cy,"#ffe45c",4);
+  line(c,280,cy-7,280,cy+7,"#ffe45c",3);
+
+  if (s.fd) {
+    let pitchCue = s.pitchCommand, rollCue = s.rollCommand;
+    if (s.altMode)
+      pitchCue = clamp(3+(s.altTarget-s.altitude)*.006,-10,16);
+    if (s.headingMode)
+      rollCue = clamp(headingError(s.headingTarget,s.heading)*.65,-25,25);
+    const dy = clamp((s.pitch-pitchCue)*5,-65,65);
+    const dx = clamp((rollCue-s.roll)*2,-65,65);
+    line(c,235,cy+dy,325,cy+dy,"#ff69eb",3);
+    line(c,280+dx,cy-45,280+dx,cy+45,"#ff69eb",3);
+  }
+
+  c.fillStyle = "#162128";
+  c.fillRect(8,50,80,310); c.fillRect(472,50,80,310);
+
+  for (let i=-4; i<=4; i++) {
+    const sp = Math.round(s.speed/20)*20 + i*20;
+    const y = cy-(sp-s.speed)*2;
+    if (sp>=0 && y>65 && y<350) text(c,sp,78,y,18,"#dae4ec","right");
+    const alt = Math.round(s.altitude/100)*100+i*100;
+    const ay = cy-(alt-s.altitude)*.45;
+    if (alt>=0 && ay>65 && ay<350) text(c,alt,546,ay,16,"#dae4ec","right");
+  }
+
+  c.fillStyle = "#000";
+  c.fillRect(5,cy-21,84,39); c.fillRect(471,cy-21,86,39);
+  text(c,Math.round(s.speed),80,cy+8,25,"#fff","right");
+  text(c,Math.round(s.altitude),548,cy+8,22,"#fff","right");
+  text(c,"IAS",18,37,15,"#6eeaff");
+  text(c,"ALT",487,37,15,"#6eeaff");
+  text(c,s.ap ? "CMD" : s.fd ? "FD" : "MAN",280,28,19,"#75ff9a","center");
+  text(c,"HDG "+Math.round(s.heading).toString().padStart(3,"0"),280,391,22,"#fff","center");
+  text(c,"V/S "+Math.round(s.vs/10)*10+" ft/m",280,421,17,"#75ff9a","center");
+  text(c,"BANK "+s.roll.toFixed(0)+"°",280,71,14,"#fff","center");
+  if (s.crashed) text(c,"FLIGHT ENDED",280,305,26,"#ff615c","center");
+}
+
+function drawND() {
+  const c = base("nd");
+  if (!c) return;
+  const cx = 230, cy = 230, scale = 17;
+  c.save();
+  c.beginPath(); c.arc(cx,cy,178,0,Math.PI*2); c.clip();
+  c.translate(cx,cy);
+  c.rotate(-s.heading*Math.PI/180);
+  c.translate(-s.east*scale,s.north*scale);
+
+  c.strokeStyle = "#153129"; c.lineWidth = 1;
+  for(let n=-60;n<=60;n+=2) {
+    line(c,-1000,n*scale,1000,n*scale,"#153129",1);
+    line(c,n*scale,-1000,n*scale,1000,"#153129",1);
+  }
+  c.fillStyle = "#818b91";
+  c.fillRect(-7,-85,14,170);
+  for(let y=-70;y<80;y+=25) line(c,0,y,0,y+12,"#fff",2);
+  text(c,"RWY 00",17,10,13,"#8fffb5");
+
+  const waypoints = [
+    {x:3,y:6,n:"NORTH"}, {x:8,y:1,n:"EAST"},
+    {x:-5,y:3,n:"WEST"}, {x:2,y:-7,n:"SOUTH"}
+  ];
+  waypoints.forEach(w => {
+    const x=w.x*scale,y=-w.y*scale;
+    c.strokeStyle="#ff78ee";
+    c.strokeRect(x-4,y-4,8,8);
+    text(c,w.n,x+8,y,12,"#ff78ee");
+  });
+  c.restore();
+
+  [85,170].forEach(r => {
+    c.strokeStyle="#52616b";
+    c.beginPath(); c.arc(cx,cy,r,0,Math.PI*2); c.stroke();
+  });
+
+  for(let d=0;d<360;d+=10) {
+    const a=(d-s.heading-90)*Math.PI/180;
+    const r=173, inner=d%30===0?157:165;
+    line(c,cx+Math.cos(a)*inner,cy+Math.sin(a)*inner,
+      cx+Math.cos(a)*r,cy+Math.sin(a)*r,"#bbc9d3",1);
+    if(d%30===0) {
+      const label = d===0?"N":d===90?"E":d===180?"S":d===270?"W":String(d);
+      text(c,label,cx+Math.cos(a)*143,cy+Math.sin(a)*143+5,14,"#fff","center");
+    }
+  }
+  const bug=(s.headingTarget-s.heading-90)*Math.PI/180;
+  c.fillStyle="#ff78ee";
+  c.beginPath();
+  c.arc(cx+Math.cos(bug)*176,cy+Math.sin(bug)*176,5,0,Math.PI*2);
+  c.fill();
+
+  line(c,cx,cy-16,cx,cy+20,"#fff",3);
+  line(c,cx-18,cy+5,cx+18,cy+5,"#fff",3);
+  line(c,cx-8,cy+18,cx+8,cy+18,"#fff",2);
+  text(c,"TRK "+Math.round(s.heading).toString().padStart(3,"0")+"°",230,30,22,"#fff","center");
+  text(c,"10 NM RANGE",15,425,14,"#75ff9a");
+  text(c,"GS "+Math.round(s.speed),345,425,14,"#75ff9a");
+}
+
+function drawEICAS() {
+  const c = base("eicas");
+  if (!c) return;
+  text(c,"ENGINE STATUS",170,30,19,"#fff","center");
+
+  [s.n1,s.n2].forEach((n,i) => {
+    const x=93+i*154, y=116;
+    c.lineWidth=9;
+    c.strokeStyle="#26333b";
+    c.beginPath(); c.arc(x,y,50,.75*Math.PI,2.25*Math.PI); c.stroke();
+    c.strokeStyle=n>95?"#ffbf55":"#70ff9b";
+    c.beginPath();
+    c.arc(x,y,50,.75*Math.PI,.75*Math.PI+1.5*Math.PI*n/100);
+    c.stroke();
+    text(c,n.toFixed(1),x,y+8,25,"#fff","center");
+    text(c,"N1 %",x,y+35,13,"#aebfca","center");
+    text(c,"ENG "+(i+1),x,65,16,"#aebfca","center");
+    const running = s["engine"+(i+1)];
+    text(c,running?(n<20?"STARTING":"RUN"):"OFF",
+      x,190,15,running?"#75ff9a":"#ffbb45","center");
+  });
+
+  const rows = [
+    ["FUEL",Math.round(s.fuel)+" kg"],
+    ["ELECTRICAL",power()?"POWERED":"OFF"],
+    ["HYDRAULICS",s.hydraulics?"ON":"OFF"],
+    ["GEAR",s.gear>.98?"DOWN":s.gear<.02?"UP":"TRANSIT"],
+    ["FLAPS",s.flaps.toFixed(0)],
+    ["LIGHTS",[s.nav&&"N",s.beacon&&"B",s.strobe&&"S",s.landing&&"L"].filter(Boolean).join(" ")||"OFF"],
+    ["ANTI ICE",s.antiIce?"ON":"OFF"],
+    ["PITOT HEAT",s.pitot?"ON":"OFF"]
+  ];
+  rows.forEach(([label,value],i) => {
+    text(c,label,15,225+i*25,13,"#aebfca");
+    text(c,value,325,225+i*25,14,"#75ff9a","right");
+  });
+}
+
+let last = performance.now(), uiTimer = 0;
+function frame(now) {
+  const dt = Math.min((now-last)/1000,.05);
+  last=now;
+  update(dt);
+  uiTimer += dt;
+  if(uiTimer>.09) {
+    sync(); alerts(); uiTimer=0;
+  }
+  drawPFD(); drawND(); drawEICAS();
+  if(audio) {
+    const level = soundOn && !paused && !s.crashed ?
+      (s.n1+s.n2)/200*.035 : 0;
+    volume.gain.setTargetAtTime(level,audio.currentTime,.15);
+    oscillator.frequency.setTargetAtTime(35+(s.n1+s.n2)*.65,audio.currentTime,.15);
+  }
+  requestAnimationFrame(frame);
+}
+reset();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
